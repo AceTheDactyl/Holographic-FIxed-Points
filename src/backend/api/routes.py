@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 from flask import Blueprint, jsonify, request
+from pydantic import ValidationError
 
 from ..core import (
     KuramotoSolver,
@@ -21,6 +22,24 @@ from ..core import (
     TuringPatternSolver,
     NuclearCriticalitySolver,
 )
+from .models import (
+    KuramotoRequest,
+    KuramotoSweepRequest,
+    TuringRequest,
+    TuringEvolveRequest,
+    BekensteinRequest,
+    CriticalityRequest,
+    CriticalityTransientRequest,
+)
+
+
+# Request model mapping for each solver type
+REQUEST_MODELS = {
+    "kuramoto": KuramotoRequest,
+    "bekenstein": BekensteinRequest,
+    "turing": TuringRequest,
+    "criticality": CriticalityRequest,
+}
 
 # Blueprints
 simulations_bp = Blueprint("simulations", __name__)
@@ -109,10 +128,24 @@ def run_simulation(solver_type: str):
         return jsonify({"error": f"Unknown solver: {solver_type}"}), 400
 
     try:
-        params = request.json or {}
-        steps = params.pop("steps", 1000)
-        dt = params.pop("dt", 0.01)
-        sample_rate = params.pop("sample_rate", 100)  # Number of samples to return
+        raw_params = request.json or {}
+
+        # Validate request with Pydantic model
+        model_class = REQUEST_MODELS.get(solver_type)
+        if model_class:
+            try:
+                validated = model_class(**raw_params)
+                params = validated.model_dump(exclude={"steps", "dt", "sample_rate"})
+                steps = validated.steps
+                dt = validated.dt
+                sample_rate = validated.sample_rate
+            except ValidationError as e:
+                return jsonify({"error": "Validation error", "details": e.errors()}), 400
+        else:
+            params = raw_params.copy()
+            steps = params.pop("steps", 1000)
+            dt = params.pop("dt", 0.01)
+            sample_rate = params.pop("sample_rate", 100)
 
         solver = SOLVERS[solver_type](params)
         solver.setup()
@@ -138,6 +171,8 @@ def run_simulation(solver_type: str):
             "trajectory": trajectory,
         })
 
+    except ValidationError as e:
+        return jsonify({"error": "Validation error", "details": e.errors()}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -159,27 +194,34 @@ def kuramoto_coupling_sweep():
         }
     """
     try:
-        params = request.json or {}
-        K_min = params.pop("K_min", 0.1)
-        K_max = params.pop("K_max", 5.0)
-        K_steps = params.pop("K_steps", 50)
-        equilibration_steps = params.pop("equilibration_steps", 1000)
-        sample_steps = params.pop("sample_steps", 100)
+        raw_params = request.json or {}
+
+        # Validate with Pydantic
+        try:
+            validated = KuramotoSweepRequest(**raw_params)
+        except ValidationError as e:
+            return jsonify({"error": "Validation error", "details": e.errors()}), 400
 
         results = []
-        K_values = np.linspace(K_min, K_max, K_steps)
+        K_values = np.linspace(validated.K_min, validated.K_max, validated.K_steps)
+
+        solver_params = {
+            "n_oscillators": validated.n_oscillators,
+            "frequency_std": validated.frequency_std,
+            "seed": validated.seed,
+        }
 
         for K in K_values:
-            solver = KuramotoSolver({**params, "coupling": float(K)})
+            solver = KuramotoSolver({**solver_params, "coupling": float(K)})
             solver.setup()
 
             # Equilibrate
-            for _ in range(equilibration_steps):
+            for _ in range(validated.equilibration_steps):
                 solver.step(0.01)
 
             # Sample order parameter
             r_samples = []
-            for _ in range(sample_steps):
+            for _ in range(validated.sample_steps):
                 solver.step(0.01)
                 r_samples.append(solver.compute_order_parameter())
 
@@ -189,14 +231,16 @@ def kuramoto_coupling_sweep():
                 "r_std": float(np.std(r_samples)),
             })
 
-        K_c = float(np.sqrt(8 / np.pi) * params.get("frequency_std", 1.0))
+        K_c = float(np.sqrt(8 / np.pi) * validated.frequency_std)
 
         return jsonify({
             "sweep": results,
             "K_critical": K_c,
-            "parameters": params,
+            "parameters": solver_params,
         })
 
+    except ValidationError as e:
+        return jsonify({"error": "Validation error", "details": e.errors()}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -217,18 +261,28 @@ def turing_evolution():
         }
     """
     try:
-        params = request.json or {}
-        grid_size = params.pop("grid_size", 64)
-        dt = params.pop("dt", 0.1)
-        total_time = params.pop("total_time", 100.0)
-        snapshot_times = params.pop("snapshot_times", [0, 10, 50, 100])
+        raw_params = request.json or {}
 
-        solver = TuringPatternSolver({**params, "grid_size": grid_size})
+        # Validate with Pydantic
+        try:
+            validated = TuringEvolveRequest(**raw_params)
+        except ValidationError as e:
+            return jsonify({"error": "Validation error", "details": e.errors()}), 400
+
+        solver_params = {
+            "grid_size": validated.grid_size,
+            "D_u": validated.D_u,
+            "D_v": validated.D_v,
+            "seed": validated.seed,
+        }
+
+        solver = TuringPatternSolver(solver_params)
         solver.setup()
 
         snapshots = []
         snapshot_idx = 0
         current_time = 0.0
+        snapshot_times = sorted(validated.snapshot_times)
 
         # Initial snapshot
         if 0 in snapshot_times:
@@ -239,9 +293,9 @@ def turing_evolution():
             })
             snapshot_idx = 1
 
-        while current_time < total_time and snapshot_idx < len(snapshot_times):
-            solver.step(dt)
-            current_time += dt
+        while current_time < validated.total_time and snapshot_idx < len(snapshot_times):
+            solver.step(validated.dt)
+            current_time += validated.dt
 
             if snapshot_idx < len(snapshot_times) and current_time >= snapshot_times[snapshot_idx]:
                 snapshots.append({
@@ -253,10 +307,12 @@ def turing_evolution():
 
         return jsonify({
             "snapshots": snapshots,
-            "grid_size": grid_size,
+            "grid_size": validated.grid_size,
             "critical_ratio": solver.get_critical_threshold(),
         })
 
+    except ValidationError as e:
+        return jsonify({"error": "Validation error", "details": e.errors()}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -279,12 +335,21 @@ def criticality_transient():
         }
     """
     try:
-        params = request.json or {}
-        duration = params.pop("duration", 10.0)
-        dt = params.pop("dt", 0.001)
-        rod_changes = params.pop("rod_changes", [])
+        raw_params = request.json or {}
 
-        solver = NuclearCriticalitySolver(params)
+        # Validate with Pydantic
+        try:
+            validated = CriticalityTransientRequest(**raw_params)
+        except ValidationError as e:
+            return jsonify({"error": "Validation error", "details": e.errors()}), 400
+
+        solver_params = {
+            "k_infinity": validated.k_infinity,
+            "leakage_factor": validated.leakage_factor,
+            "delayed_fraction": validated.delayed_fraction,
+        }
+
+        solver = NuclearCriticalitySolver(solver_params)
         solver.setup()
 
         trajectory = []
@@ -292,19 +357,19 @@ def criticality_transient():
         rod_idx = 0
 
         # Sort rod changes by time
-        rod_changes.sort(key=lambda x: x["time"])
+        rod_changes = sorted(validated.rod_changes, key=lambda x: x.time)
 
-        while current_time < duration:
+        while current_time < validated.duration:
             # Apply rod changes
-            while rod_idx < len(rod_changes) and current_time >= rod_changes[rod_idx]["time"]:
-                solver.set_control_rods(rod_changes[rod_idx]["worth"])
+            while rod_idx < len(rod_changes) and current_time >= rod_changes[rod_idx].time:
+                solver.set_control_rods(rod_changes[rod_idx].worth)
                 rod_idx += 1
 
-            solver.step(dt)
-            current_time += dt
+            solver.step(validated.dt)
+            current_time += validated.dt
 
             # Sample every 100 steps
-            if int(current_time / dt) % 100 == 0:
+            if int(current_time / validated.dt) % 100 == 0:
                 trajectory.append({
                     "time": float(current_time),
                     "k_eff": solver.compute_order_parameter(),
@@ -318,6 +383,8 @@ def criticality_transient():
             "final_neutrons": solver.get_neutron_population(),
         })
 
+    except ValidationError as e:
+        return jsonify({"error": "Validation error", "details": e.errors()}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
