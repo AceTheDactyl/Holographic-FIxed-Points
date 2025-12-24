@@ -11,6 +11,7 @@ Output files are written to public/data/
 """
 
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -28,8 +29,8 @@ from backend.core import (
     NuclearCriticalitySolver,
 )
 
-# Output directory
-OUTPUT_DIR = Path(__file__).parent.parent.parent.parent.parent / "public" / "data"
+# Output directory - use environment variable or default to repo root
+OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", Path.cwd() / "public" / "data"))
 
 
 def save_json(data: Any, filename: str) -> Path:
@@ -132,10 +133,10 @@ def generate_turing_patterns() -> Path:
     solver.setup()
 
     snapshots = []
-    times = [0, 1, 2, 5, 10, 20, 50, 100, 200]
+    times = [0, 1, 2, 5, 10, 20, 50, 100]
 
     current_time = 0.0
-    dt = 0.1
+    dt = 0.01  # Smaller timestep for numerical stability
 
     for target_time in times:
         while current_time < target_time:
