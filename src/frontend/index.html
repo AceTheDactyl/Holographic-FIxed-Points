@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="APL Holographic Fixed Points - Interactive visualization of physics critical phenomena" />
+  <title>APL Holographic Fixed Points</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/scientific-dashboard.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Dashboard Layout -->
+    <div class="dashboard">
+      <!-- Header -->
+      <header class="dashboard-header">
+        <h1>APL Holographic Fixed Points</h1>
+        <nav class="header-nav">
+          <button class="nav-btn active" data-view="kuramoto">Kuramoto</button>
+          <button class="nav-btn" data-view="turing">Turing</button>
+          <button class="nav-btn" data-view="bekenstein">Bekenstein</button>
+          <button class="nav-btn" data-view="criticality">Criticality</button>
+        </nav>
+        <div class="header-info">
+          <span class="status-indicator"></span>
+          <span id="simulation-status">Ready</span>
+        </div>
+      </header>
+
+      <!-- Control Panel -->
+      <aside class="control-panel">
+        <h2>Parameters</h2>
+
+        <!-- Kuramoto Controls -->
+        <div id="kuramoto-controls" class="control-section">
+          <div class="control-group">
+            <label for="coupling-slider">Coupling Strength (K)</label>
+            <input type="range" id="coupling-slider" min="0.1" max="5" step="0.1" value="1.5" />
+            <div class="value-display" id="coupling-value">1.5</div>
+          </div>
+
+          <div class="control-group">
+            <label for="oscillators-slider">Oscillators (N)</label>
+            <input type="range" id="oscillators-slider" min="10" max="500" step="10" value="100" />
+            <div class="value-display" id="oscillators-value">100</div>
+          </div>
+
+          <div class="control-group">
+            <label for="freq-std-slider">Frequency Std (σ)</label>
+            <input type="range" id="freq-std-slider" min="0.1" max="3" step="0.1" value="1.0" />
+            <div class="value-display" id="freq-std-value">1.0</div>
+          </div>
+        </div>
+
+        <!-- Turing Controls -->
+        <div id="turing-controls" class="control-section hidden">
+          <div class="control-group">
+            <label for="du-slider">D_u (Activator Diffusion)</label>
+            <input type="range" id="du-slider" min="0.0001" max="0.001" step="0.0001" value="0.00028" />
+            <div class="value-display" id="du-value">2.8e-4</div>
+          </div>
+
+          <div class="control-group">
+            <label for="dv-slider">D_v (Inhibitor Diffusion)</label>
+            <input type="range" id="dv-slider" min="0.001" max="0.02" step="0.001" value="0.005" />
+            <div class="value-display" id="dv-value">5e-3</div>
+          </div>
+
+          <div class="control-group">
+            <label for="time-slider">Time</label>
+            <input type="range" id="time-slider" min="0" max="7" step="1" value="0" />
+            <div class="value-display" id="time-value">t=0</div>
+          </div>
+        </div>
+
+        <!-- Bekenstein Controls -->
+        <div id="bekenstein-controls" class="control-section hidden">
+          <div class="control-group">
+            <label for="mass-slider">Log₁₀(Mass/kg)</label>
+            <input type="range" id="mass-slider" min="0" max="40" step="0.5" value="30" />
+            <div class="value-display" id="mass-value">10³⁰ kg</div>
+          </div>
+        </div>
+
+        <!-- Criticality Controls -->
+        <div id="criticality-controls" class="control-section hidden">
+          <div class="control-group">
+            <label for="k-inf-slider">k_∞ (Infinite Medium)</label>
+            <input type="range" id="k-inf-slider" min="0.9" max="1.15" step="0.01" value="1.03" />
+            <div class="value-display" id="k-inf-value">1.03</div>
+          </div>
+
+          <div class="control-group">
+            <label for="leakage-slider">Leakage Factor</label>
+            <input type="range" id="leakage-slider" min="0" max="0.1" step="0.005" value="0.02" />
+            <div class="value-display" id="leakage-value">0.02</div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="control-actions">
+          <button id="run-btn" class="btn btn-primary">Run Simulation</button>
+          <button id="reset-btn" class="btn btn-secondary">Reset</button>
+        </div>
+      </aside>
+
+      <!-- Main Visualization Area -->
+      <main class="main-visualization">
+        <div class="visualization-card" id="primary-viz">
+          <h3>Phase Diagram</h3>
+          <div id="phase-diagram-container" class="viz-container"></div>
+        </div>
+
+        <div class="visualization-card" id="secondary-viz">
+          <h3>Phase Space</h3>
+          <div id="phase-space-container" class="viz-container"></div>
+        </div>
+      </main>
+
+      <!-- Sidebar with Fixed Points Info -->
+      <aside class="sidebar">
+        <h2>Fixed Points</h2>
+
+        <div class="fixed-point-card" id="fp-kuramoto">
+          <div class="fixed-point-name">Kuramoto K_c</div>
+          <div class="fixed-point-value">√(8/π) ≈ 1.596</div>
+          <div class="fixed-point-status">Synchronization threshold</div>
+          <div class="fixed-point-indicator" data-status="below">
+            <span class="indicator-label">Current:</span>
+            <span class="indicator-value" id="current-r">r = 0.00</span>
+          </div>
+        </div>
+
+        <div class="fixed-point-card" id="fp-nuclear">
+          <div class="fixed-point-name">Nuclear k_eff</div>
+          <div class="fixed-point-value">k_eff = 1.0</div>
+          <div class="fixed-point-status">Criticality threshold</div>
+        </div>
+
+        <div class="fixed-point-card" id="fp-bekenstein">
+          <div class="fixed-point-name">Bekenstein S</div>
+          <div class="fixed-point-value">S = A/(4ℓ_P²)</div>
+          <div class="fixed-point-status">Holographic entropy bound</div>
+        </div>
+
+        <div class="fixed-point-card" id="fp-turing">
+          <div class="fixed-point-name">Turing Instability</div>
+          <div class="fixed-point-value">D_v/D_u > critical</div>
+          <div class="fixed-point-status">Pattern formation threshold</div>
+        </div>
+      </aside>
+
+      <!-- Timeline Panel -->
+      <footer class="timeline-panel">
+        <h3>Simulation Timeline</h3>
+        <div id="timeline-container" class="timeline-viz"></div>
+      </footer>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+# Build Physics Data and Deploy to GitHub Pages
+#
+# This workflow:
+# 1. Generates pre-computed simulation data using Python
+# 2. Builds the TypeScript frontend with Vite
+# 3. Deploys the static site to GitHub Pages
+
+name: Build Physics Data and Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly rebuild to update data
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # =============================================================================
+  # Generate Physics Data
+  # =============================================================================
+  generate-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy scipy h5py
+          pip install -e .
+
+      - name: Generate simulation data
+        run: |
+          python scripts/generate_static_data.py
+
+      - name: Upload data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: physics-data
+          path: public/data/
+          retention-days: 1
+
+  # =============================================================================
+  # Build Frontend
+  # =============================================================================
+  build-frontend:
+    needs: generate-data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Download physics data
+        uses: actions/download-artifact@v4
+        with:
+          name: physics-data
+          path: src/frontend/public/data/
+
+      - name: Install frontend dependencies
+        working-directory: src/frontend
+        run: npm ci || npm install
+
+      - name: Build frontend
+        working-directory: src/frontend
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: src/frontend/dist
+
+  # =============================================================================
+  # Deploy to GitHub Pages
+  # =============================================================================
+  deploy:
+    needs: build-frontend
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
