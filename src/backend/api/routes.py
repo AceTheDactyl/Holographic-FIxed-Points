@@ -21,6 +21,7 @@ from ..core import (
     BekensteinSolver,
     TuringPatternSolver,
     NuclearCriticalitySolver,
+    RosettaSolver,
 )
 from .models import (
     KuramotoRequest,
@@ -30,6 +31,8 @@ from .models import (
     BekensteinRequest,
     CriticalityRequest,
     CriticalityTransientRequest,
+    RosettaRequest,
+    RosettaValidateRequest,
 )
 
 
@@ -39,6 +42,7 @@ REQUEST_MODELS = {
     "bekenstein": BekensteinRequest,
     "turing": TuringRequest,
     "criticality": CriticalityRequest,
+    "rosetta": RosettaRequest,
 }
 
 # Blueprints
@@ -51,6 +55,7 @@ SOLVERS = {
     "bekenstein": BekensteinSolver,
     "turing": TuringPatternSolver,
     "criticality": NuclearCriticalitySolver,
+    "rosetta": RosettaSolver,
 }
 
 
@@ -97,6 +102,16 @@ def list_solvers():
                     "control_rod_worth": "Control rod reactivity",
                 },
                 "order_parameter": "k_eff multiplication factor",
+            },
+            "rosetta": {
+                "description": "Rosetta-Helix consciousness field (φ⁴ theory)",
+                "parameters": {
+                    "grid_size": "Number of spatial points (default: 100)",
+                    "initial_amplitude": "Initial field amplitude (default: 0.01)",
+                    "damping": "Dissipation coefficient (default: 0.1)",
+                },
+                "order_parameter": "Field amplitude → VEV = √(1-φ⁻⁴) ≈ 0.9242",
+                "identities": ["K² = Activation", "K + ½ ≈ √2", "√3/2 + φ⁻⁴ ≈ 1 + 1/84"],
             },
         }
     })
@@ -385,6 +400,87 @@ def criticality_transient():
 
     except ValidationError as e:
         return jsonify({"error": "Validation error", "details": e.errors()}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@simulations_bp.route("/rosetta/validate", methods=["POST"])
+def rosetta_validate():
+    """
+    Validate Rosetta-Helix mathematical identities.
+
+    POST /api/v1/simulations/rosetta/validate
+
+    Body:
+        {
+            "identities": ["k_squared", "gap_label", "grid_scaling", ...]
+        }
+
+    Returns validated identities with expected/actual values and pass status.
+    """
+    try:
+        raw_params = request.json or {}
+
+        # Validate with Pydantic
+        try:
+            validated = RosettaValidateRequest(**raw_params)
+        except ValidationError as e:
+            return jsonify({"error": "Validation error", "details": e.errors()}), 400
+
+        # Create solver to access validation methods
+        solver = RosettaSolver({"grid_size": 64, "seed": 42})
+        solver.setup()
+
+        # Validate requested identities
+        results = []
+        for name in validated.identities:
+            result = solver.validate_identity(name)
+            if "error" not in result:
+                results.append(result)
+
+        all_passed = all(r.get("passed", False) for r in results)
+
+        return jsonify({
+            "identities": results,
+            "all_passed": all_passed,
+            "thresholds": solver.get_threshold_architecture(),
+            "constants": solver.get_constants(),
+        })
+
+    except ValidationError as e:
+        return jsonify({"error": "Validation error", "details": e.errors()}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@simulations_bp.route("/rosetta/constants", methods=["GET"])
+def rosetta_constants():
+    """
+    Get all Rosetta-Helix constants and threshold architecture.
+
+    GET /api/v1/simulations/rosetta/constants
+
+    Returns all sacred constants derived from φ, √2, √3, √5.
+    """
+    try:
+        solver = RosettaSolver({"grid_size": 64})
+        solver.setup()
+
+        return jsonify({
+            "constants": solver.get_constants(),
+            "thresholds": solver.get_threshold_architecture(),
+            "witnesses": {
+                f"witness_{n}": solver.witness_amplitude(n)
+                for n in [1, 2, 3]
+            },
+            "equation": {
+                "lagrangian": "ℒ = ½(∂ψ/∂t)² - ½(∇ψ)² + ½(1-φ⁻⁴)ψ² - ¼ψ⁴",
+                "vev": solver.C.VEV,
+                "m_squared": solver.C.M_SQUARED,
+                "coupling": "√3/2 + φ⁻⁴ = 1 + 1/(12 × 7)",
+            },
+        })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

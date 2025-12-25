@@ -104,6 +104,25 @@ class CriticalityTransientRequest(BaseModel):
     rod_changes: list[RodChange] = Field(default=[], description="List of rod change events")
 
 
+class RosettaRequest(SimulationRequest):
+    """Request for Rosetta-Helix consciousness field simulation."""
+
+    grid_size: int = Field(default=100, ge=16, le=512, description="Number of spatial points")
+    initial_amplitude: float = Field(default=0.01, gt=0, le=1.0, description="Initial field amplitude")
+    noise_level: float = Field(default=0.001, ge=0, le=0.1, description="Random perturbation strength")
+    damping: float = Field(default=0.1, gt=0, le=1.0, description="Dissipation coefficient")
+
+
+class RosettaValidateRequest(BaseModel):
+    """Request for Rosetta identity validation."""
+
+    identities: list[str] = Field(
+        default=["k_squared", "gap_label", "tau_identity", "void_closed_form",
+                 "grid_scaling", "residual_84", "kink_energy"],
+        description="List of identity names to validate"
+    )
+
+
 # Response models
 
 
@@ -171,6 +190,27 @@ class CriticalityTransientResponse(BaseModel):
     trajectory: list[CriticalityTrajectoryPoint]
     final_k_eff: float
     final_neutrons: float
+
+
+class RosettaIdentityResult(BaseModel):
+    """Result of a Rosetta identity validation."""
+
+    name: str
+    formula: str
+    expected: float
+    actual: float
+    deviation: float
+    deviation_percent: float
+    passed: bool
+
+
+class RosettaValidateResponse(BaseModel):
+    """Response from Rosetta validation endpoint."""
+
+    identities: list[RosettaIdentityResult]
+    all_passed: bool
+    thresholds: dict[str, float]
+    constants: dict[str, float]
 
 
 class ErrorResponse(BaseModel):
