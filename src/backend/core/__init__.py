@@ -7,6 +7,7 @@ from .kuramoto import KuramotoSolver
 from .bekenstein import BekensteinSolver
 from .turing import TuringPatternSolver
 from .criticality import NuclearCriticalitySolver
+from .rosetta import RosettaSolver, RosettaConstants
 
 __all__ = [
     "HolographicSolver",
@@ -15,4 +16,6 @@ __all__ = [
     "BekensteinSolver",
     "TuringPatternSolver",
     "NuclearCriticalitySolver",
+    "RosettaSolver",
+    "RosettaConstants",
 ]

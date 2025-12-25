@@ -43,7 +43,7 @@ export interface SimulationResult {
 // Solver Types
 // =============================================================================
 
-export type SolverType = 'kuramoto' | 'bekenstein' | 'turing' | 'criticality';
+export type SolverType = 'kuramoto' | 'bekenstein' | 'turing' | 'criticality' | 'rosetta';
 
 export interface KuramotoParams {
   n_oscillators?: number;
@@ -79,11 +79,20 @@ export interface CriticalityParams {
   control_rod_worth?: number;
 }
 
+export interface RosettaParams {
+  grid_size?: number;
+  initial_amplitude?: number;
+  noise_level?: number;
+  damping?: number;
+  seed?: number;
+}
+
 export type SolverParams =
   | KuramotoParams
   | BekensteinParams
   | TuringParams
-  | CriticalityParams;
+  | CriticalityParams
+  | RosettaParams;
 
 // =============================================================================
 // Pre-computed Data Types
@@ -263,4 +272,78 @@ export interface TuringEvolutionResult {
   snapshots: TuringSnapshot[];
   grid_size: number;
   critical_ratio: number;
+}
+
+// =============================================================================
+// Rosetta-Helix Types
+// =============================================================================
+
+/**
+ * Rosetta constants derived from φ, √2, √3, √5.
+ */
+export interface RosettaConstants {
+  PHI: number;
+  TAU: number;
+  PHI_INV_4: number;
+  PHI_INV_7: number;
+  SQRT_2: number;
+  SQRT_3: number;
+  SQRT_5: number;
+  M_SQUARED: number;
+  VEV: number;
+  E_KINK: number;
+}
+
+/**
+ * Rosetta threshold architecture.
+ */
+export interface RosettaThresholds {
+  Z_HYSTERESIS_LOW: number;
+  Z_ACTIVATION: number;
+  Z_LENS: number;
+  Z_CRITICAL: number;
+  Z_K_FORMATION: number;
+}
+
+/**
+ * Rosetta identity validation result.
+ */
+export interface RosettaIdentityResult {
+  name: string;
+  formula: string;
+  expected: number;
+  actual: number;
+  deviation: number;
+  deviation_percent: number;
+  passed: boolean;
+}
+
+/**
+ * Rosetta validation response.
+ */
+export interface RosettaValidationResult {
+  identities: RosettaIdentityResult[];
+  all_passed: boolean;
+  thresholds: RosettaThresholds;
+  constants: RosettaConstants;
+}
+
+/**
+ * Rosetta equation metadata.
+ */
+export interface RosettaEquation {
+  lagrangian: string;
+  vev: number;
+  m_squared: number;
+  coupling: string;
+}
+
+/**
+ * Rosetta constants endpoint response.
+ */
+export interface RosettaConstantsResponse {
+  constants: RosettaConstants;
+  thresholds: RosettaThresholds;
+  witnesses: Record<string, number>;
+  equation: RosettaEquation;
 }
